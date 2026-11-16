@@ -53,6 +53,38 @@ shape:
 
 The route inserts or updates one progress row for the signed-in user and video.
 
+### `POST /api/payments/orders`
+
+Creates or reuses one pending purchase for the signed-in user and course. The
+request contains `courseId`. The backend reads the amount and currency from the
+published course row and creates the Razorpay order.
+
+The response contains the purchase ID and the public Checkout fields. It never
+contains `RAZORPAY_KEY_SECRET` or `RAZORPAY_WEBHOOK_SECRET`.
+
+### `POST /api/payments/verify`
+
+Accepts the purchase ID and the three fields returned by Razorpay Checkout.
+The route verifies the signature with the stored order ID. It then fetches the
+payment from Razorpay and grants access only when the payment is captured and
+matches the stored amount and currency.
+
+### `GET /api/payments/:id`
+
+Returns `pending` or `paid` for a purchase owned by the signed-in user.
+
+## Razorpay webhook
+
+### `POST /api/webhooks/razorpay`
+
+Receives the raw Razorpay request body before the JSON parser. The route checks
+`X-Razorpay-Signature` with `RAZORPAY_WEBHOOK_SECRET` and deduplicates requests
+with `x-razorpay-event-id`.
+
+Both `order.paid` and `payment.captured` can finalize a purchase. Other events
+are recorded without changing purchase state. A paid purchase never returns to
+pending.
+
 ## Admin routes
 
 All routes under `/api/admin` require the `admin` role.
@@ -98,6 +130,16 @@ cannot be deleted.
 
 The grant request contains `userId` and `courseId`. Repeated grants reactivate
 the existing row. The delete route sets `revokedAt` and preserves the row.
+
+### Purchase routes
+
+- `GET /api/admin/purchases`
+- `POST /api/admin/purchases/:id/reconcile`
+
+The list includes the customer, the course, the snapshotted price, and the
+Razorpay IDs. Reconciliation fetches the order's payments from Razorpay and
+finalizes a matching captured payment. It leaves the purchase pending when no
+matching payment exists.
 
 Better Auth provides user listing, role changes, bans, session management, and
 impersonation under `/api/auth/admin/*`.

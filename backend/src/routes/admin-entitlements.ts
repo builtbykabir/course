@@ -110,21 +110,34 @@ adminEntitlementsRouter.post('/entitlements', async (request, response) => {
     return
   }
 
-  const [grantedEntitlement] = await db
-    .insert(entitlement)
-    .values({
-      userId: foundUser.id,
-      courseId: foundCourse.id,
-      source: 'admin_grant',
-    })
-    .onConflictDoUpdate({
-      target: [entitlement.userId, entitlement.courseId],
-      set: {
-        source: sql<string>`case when ${entitlement.revokedAt} is null then ${entitlement.source} else 'admin_grant' end`,
-        revokedAt: null,
-      },
-    })
-    .returning()
+  const grantedEntitlement = await db.transaction(async (transaction) => {
+    await transaction
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.id, foundUser.id))
+      .for('update')
+
+    const [grantedEntitlement] = await transaction
+      .insert(entitlement)
+      .values({
+        userId: foundUser.id,
+        courseId: foundCourse.id,
+        source: 'admin_grant',
+      })
+      .onConflictDoUpdate({
+        target: [entitlement.userId, entitlement.courseId],
+        set: {
+          source: sql<string>`case when ${entitlement.revokedAt} is null then ${entitlement.source} else 'admin_grant' end`,
+          purchaseId: sql<
+            string | null
+          >`case when ${entitlement.revokedAt} is null then ${entitlement.purchaseId} else null end`,
+          revokedAt: null,
+        },
+      })
+      .returning()
+
+    return grantedEntitlement
+  })
 
   response.json({ entitlement: grantedEntitlement })
 })

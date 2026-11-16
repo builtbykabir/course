@@ -90,6 +90,34 @@ const entitlementSchema = z.object({
   }),
 })
 
+const purchaseStatusSchema = z.enum(['pending', 'paid'])
+
+const purchaseSchema = z.object({
+  id: z.string(),
+  status: purchaseStatusSchema,
+})
+
+const adminPurchaseSchema = z.object({
+  id: z.string(),
+  amountPaise: z.number(),
+  currency: z.string(),
+  status: purchaseStatusSchema,
+  razorpayOrderId: z.string().nullable(),
+  razorpayPaymentId: z.string().nullable(),
+  paidAt: z.string().nullable(),
+  createdAt: z.string(),
+  user: z.object({
+    id: z.string(),
+    name: z.string(),
+    email: z.string(),
+  }),
+  course: z.object({
+    id: z.string(),
+    name: z.string(),
+    slug: z.string(),
+  }),
+})
+
 export type Course = z.infer<typeof publicCourseSchema>
 export type CourseMetadata = z.infer<typeof courseMetadataSchema>
 export type Video = z.infer<typeof videoSchema>
@@ -97,6 +125,7 @@ export type AdminCourse = z.infer<typeof adminCourseSchema>
 export type AdminVideo = z.infer<typeof adminVideoSchema>
 export type VideoUpload = z.infer<typeof videoUploadSchema>
 export type Entitlement = z.infer<typeof entitlementSchema>
+export type AdminPurchase = z.infer<typeof adminPurchaseSchema>
 
 export type CourseInput = {
   name: string
@@ -273,6 +302,42 @@ export function saveProgress(
   )
 }
 
+export function createPaymentOrder(courseId: string) {
+  return request(
+    '/api/payments/orders',
+    z.object({
+      purchase: purchaseSchema,
+      checkout: z.object({
+        keyId: z.string(),
+        orderId: z.string(),
+        amount: z.number(),
+        currency: z.string(),
+        name: z.string(),
+        description: z.string(),
+        prefill: z.object({ name: z.string(), email: z.string() }),
+      }),
+    }),
+    { method: 'POST', body: JSON.stringify({ courseId }) },
+  )
+}
+
+export function verifyPayment(input: {
+  purchaseId: string
+  razorpayOrderId: string
+  razorpayPaymentId: string
+  razorpaySignature: string
+}) {
+  return request(
+    '/api/payments/verify',
+    z.object({ purchase: purchaseSchema }),
+    { method: 'POST', body: JSON.stringify(input) },
+  )
+}
+
+export function getPurchase(id: string) {
+  return request(`/api/payments/${id}`, z.object({ purchase: purchaseSchema }))
+}
+
 export function listAdminCourses() {
   return request(
     '/api/admin/courses',
@@ -403,6 +468,26 @@ export function listEntitlements(userId?: string) {
   return request(
     `/api/admin/entitlements${query}`,
     z.object({ entitlements: z.array(entitlementSchema) }),
+  )
+}
+
+export function listPurchases() {
+  return request(
+    '/api/admin/purchases',
+    z.object({ purchases: z.array(adminPurchaseSchema) }),
+  )
+}
+
+export function reconcilePayment(purchaseId: string) {
+  return request(
+    `/api/admin/purchases/${purchaseId}/reconcile`,
+    z.object({
+      purchase: purchaseSchema.extend({
+        razorpayPaymentId: z.string().nullable(),
+        paidAt: z.string().nullable(),
+      }),
+    }),
+    { method: 'POST' },
   )
 }
 

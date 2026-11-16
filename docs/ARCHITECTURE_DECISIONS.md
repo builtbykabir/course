@@ -239,3 +239,56 @@ Confirm that multipart `PUT` requests and playback `GET` requests go to the R2
 S3 API endpoint. Confirm that playback returns `206 Partial Content` for a
 request with a valid `Range` header. Confirm that the playback endpoint returns
 `401` or `403` before it signs a URL for a user without course access.
+
+## ADR-006: Finalize captured purchases through one service
+
+- Status: accepted
+- Date: 2026-11-16
+- Supersedes: none
+- Related files: `backend/src/payments/`, `backend/src/routes/payments.ts`, `backend/src/routes/razorpay-webhook.ts`, `backend/src/db/schema.ts`
+
+### Context
+
+Razorpay can confirm a payment through the browser response, a webhook, or a
+later API query. These confirmations can arrive more than once or in a
+different order. Course access must open without creating duplicate purchases
+or entitlements.
+
+### Decision
+
+Store one pending purchase per user and course. Snapshot the course amount and
+currency when the backend creates the Razorpay order. Never accept an amount
+from the browser.
+
+Checkout verification, payment webhooks, and admin reconciliation call one
+idempotent finalization service. The service grants access only for a captured
+payment whose order, amount, and currency match the purchase. The purchase
+state moves only from `pending` to `paid`.
+
+Link a purchased entitlement to its purchase. Keep admin grants independent of
+purchase records. Do not implement refunds in this phase.
+
+### Alternatives considered
+
+A webhook-only flow would leave a customer waiting when local development or a
+delivery failure delays the webhook. A browser-only flow would miss payments
+when the customer closes the tab. Separate completion code would duplicate the
+same amount, state, and entitlement rules.
+
+### Consequences
+
+The backend needs outbound access to the Razorpay API. Webhook verification
+must read the raw request body before `express.json()`. The event ID prevents
+duplicate webhook processing. A user-row lock and the partial unique purchase
+index serialize payment finalization with order creation.
+
+The admin panel can re-check a pending order against Razorpay. Test Mode works
+on localhost through Checkout verification, but webhook testing needs a public
+HTTPS backend.
+
+### Verification
+
+Confirm that two order requests for the same user and course return the same
+pending purchase. Confirm that both Checkout verification and `order.paid`
+grant one entitlement. Replay the same webhook event and confirm that the
+purchase and entitlement do not change.

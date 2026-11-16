@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
+import { CheckoutButton } from '../components/checkout-button'
 import { PageState, SectionHeading } from '../components/ui'
 import { formatDuration, formatPrice, getCourse } from '../lib/api'
 import { useLoad } from '../lib/use-load'
@@ -54,13 +55,11 @@ export function CourseDetailPage() {
                 Continue course
               </Link>
             ) : (
-              <Link className="button" to="/login">
-                Sign in to access
-              </Link>
+              <CheckoutButton course={course} />
             )}
             <small>
-              Online payment is not connected yet. Admins can grant access for
-              accounts with access granted by an administrator.
+              Secure one-time payment. Access opens after Razorpay confirms the
+              captured payment.
             </small>
           </aside>
         </div>

@@ -6,6 +6,7 @@ import { db } from '../db/index.js'
 import { course, video } from '../db/schema.js'
 import { requireAdmin } from '../middleware/auth.js'
 import { adminEntitlementsRouter } from './admin-entitlements.js'
+import { adminPurchasesRouter } from './admin-purchases.js'
 import { adminVideoUploadsRouter } from './admin-video-uploads.js'
 
 const courseStatusSchema = z.enum(['draft', 'published', 'archived'])
@@ -65,6 +66,7 @@ export const adminRouter = Router()
 
 adminRouter.use(requireAdmin)
 adminRouter.use(adminEntitlementsRouter)
+adminRouter.use(adminPurchasesRouter)
 adminRouter.use(adminVideoUploadsRouter)
 
 adminRouter.get('/courses', async (_request, response) => {

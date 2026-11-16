@@ -12,15 +12,16 @@ features that the current backend supports.
 - Public course listing and course detail pages
 - Private course access through per-user entitlements
 - Admin course, lesson, user, and entitlement management
+- Razorpay Checkout for one-time course purchases
+- Idempotent payment verification, webhooks, and admin reconciliation
 - Direct multipart video uploads to private R2 or compatible S3 storage
 - Entitlement-gated playback with expiring presigned URLs
 - HTTP Range playback for streaming and seeking
 - Per-user lesson progress and course completion summaries
 - Idempotent seed data for two online courses and 18 lessons
 
-The project does not include checkout, Razorpay webhooks, demo-class booking,
-live classes, certificates, or public video delivery. Administrators grant
-course access until payment processing is implemented.
+The project does not include refunds, subscriptions, coupons, demo-class
+booking, live classes, certificates, or public video delivery.
 
 ## Stack
 
@@ -28,6 +29,7 @@ course access until payment processing is implemented.
 - Backend: Express 5, TypeScript, and Better Auth
 - Database: PostgreSQL 17 with Drizzle ORM
 - Email: Resend
+- Payments: Razorpay Orders and Standard Checkout
 - Video storage: private Cloudflare R2 through the S3-compatible API
 
 The browser sends same-origin requests to `/api`. During development, Vite
@@ -103,6 +105,28 @@ npm run admin:promote -- person@example.com
 
 The administration panel is available at `http://localhost:5173/admin` after
 the promoted account signs in.
+
+## Configure Razorpay payments
+
+Create Test Mode API keys in Razorpay. Set `RAZORPAY_KEY_ID` and
+`RAZORPAY_KEY_SECRET` in `backend/.env`. Create a separate random value for
+`RAZORPAY_WEBHOOK_SECRET` and use the same value when you configure the webhook
+in Razorpay.
+
+Subscribe the webhook to `order.paid` and point it to this route on a public
+HTTPS backend:
+
+```text
+https://api.example.com/api/webhooks/razorpay
+```
+
+Razorpay cannot send webhooks to localhost. Local Test Mode checkout still
+works because `/api/payments/verify` verifies the Checkout signature, fetches
+the payment from Razorpay, and grants access after Razorpay reports the payment
+as captured. The webhook handles closed tabs and missed browser responses.
+
+Enable automatic payment capture in the Razorpay Dashboard. The application
+does not implement refunds.
 
 ## Configure private video storage
 

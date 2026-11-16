@@ -22,9 +22,9 @@ copy.
 - Displayed course durations use the sum of the seeded lesson durations. The
   Hydra Facial course is therefore 4 hours 21 minutes instead of the reference
   site's unsupported 6-hour claim. The 1-Day Masterclass totals 2 hours.
-- Enrollment calls to action lead to account creation and the in-app course
-  library. Until payment processing is connected, administrators grant course
-  access from the admin panel.
+- Enrollment calls to action require an account and open Razorpay Checkout.
+  Captured payments grant access to the in-app course library. Administrators
+  can still grant access without a purchase.
 - The reference site's live doubt session and certificate steps became a
   troubleshooting lesson and a client-handoff lesson.
 - The original portrait and course imagery were not reused because the
@@ -43,8 +43,8 @@ copy.
   domain in the backend.
 - Certificates and downloads because certificate generation and ownership are
   not implemented.
-- Razorpay checkout, refund promises, and payment-policy claims until the
-  payment integration is completed.
+- Refund flows and refund promises because the application does not implement
+  refunds.
 - Student counts, ratings, Instagram follower counts, years-in-business claims,
   and other unverifiable marketing statistics.
 - Contact, terms, privacy, and refund-policy pages that do not yet have approved

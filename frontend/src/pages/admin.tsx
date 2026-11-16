@@ -3,6 +3,7 @@ import { Link, NavLink, useNavigate, useParams } from 'react-router-dom'
 
 import type {
   AdminCourse,
+  AdminPurchase,
   AdminVideo,
   CourseInput,
   Entitlement,
@@ -16,7 +17,9 @@ import {
   grantEntitlement,
   listAdminCourses,
   listEntitlements,
+  listPurchases,
   orderVideos,
+  reconcilePayment,
   revokeEntitlement,
   updateCourse,
   updateVideo,
@@ -64,14 +67,41 @@ function AdminHeader({
 export function AdminDashboardPage() {
   const loadCourses = useCallback(() => listAdminCourses(), [])
   const loadEntitlements = useCallback(() => listEntitlements(), [])
+  const loadPurchases = useCallback(() => listPurchases(), [])
   const courses = useLoad(loadCourses)
   const entitlements = useLoad(loadEntitlements)
+  const purchases = useLoad(loadPurchases)
+  const [reconciling, setReconciling] = useState('')
+  const [paymentError, setPaymentError] = useState('')
   const published =
     courses.data?.courses.filter((course) => course.status === 'published')
       .length ?? 0
   const activeAccess =
     entitlements.data?.entitlements.filter((item) => !item.revokedAt).length ??
     0
+
+  async function reconcile(item: AdminPurchase) {
+    setReconciling(item.id)
+    setPaymentError('')
+    try {
+      const result = await reconcilePayment(item.id)
+      if (purchases.data) {
+        purchases.setData({
+          purchases: purchases.data.purchases.map((purchase) =>
+            purchase.id === item.id
+              ? { ...purchase, ...result.purchase }
+              : purchase,
+          ),
+        })
+      }
+    } catch (error: unknown) {
+      setPaymentError(
+        error instanceof Error ? error.message : 'Could not re-check payment',
+      )
+    } finally {
+      setReconciling('')
+    }
+  }
 
   return (
     <main className="admin-shell">
@@ -102,6 +132,67 @@ export function AdminDashboardPage() {
         <Link className="button button-light" to="/admin/courses">
           Manage courses
         </Link>
+      </section>
+      <section className="admin-section-card admin-payment-section">
+        <div className="admin-section-heading">
+          <div>
+            <span className="eyebrow">Payments</span>
+            <h2>Recent purchases</h2>
+          </div>
+        </div>
+        {purchases.loading ? <p className="muted">Loading payments…</p> : null}
+        {purchases.error || paymentError ? (
+          <p className="inline-error">{purchases.error || paymentError}</p>
+        ) : null}
+        <div className="admin-table-wrap">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Customer</th>
+                <th>Course</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>
+                  <span className="sr-only">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {purchases.data?.purchases.map((purchase) => (
+                <tr key={purchase.id}>
+                  <td>
+                    <strong>{purchase.user.name}</strong>
+                    <small>{purchase.user.email}</small>
+                  </td>
+                  <td>{purchase.course.name}</td>
+                  <td>
+                    {formatPrice(purchase.amountPaise, purchase.currency)}
+                  </td>
+                  <td>
+                    <span
+                      className={`status-badge ${purchase.status === 'paid' ? 'status-published' : 'status-draft'}`}
+                    >
+                      {purchase.status}
+                    </span>
+                  </td>
+                  <td className="table-actions">
+                    {purchase.status === 'pending' ? (
+                      <button
+                        type="button"
+                        disabled={reconciling === purchase.id}
+                        onClick={() => void reconcile(purchase)}
+                      >
+                        {reconciling === purchase.id ? 'Checking…' : 'Re-check'}
+                      </button>
+                    ) : (
+                      <span className="muted">Confirmed</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
     </main>
   )

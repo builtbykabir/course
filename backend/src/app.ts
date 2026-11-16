@@ -8,6 +8,8 @@ import { env } from './config/env.js'
 import { adminRouter } from './routes/admin.js'
 import { coursesRouter } from './routes/courses.js'
 import { meRouter } from './routes/me.js'
+import { paymentsRouter } from './routes/payments.js'
+import { razorpayWebhookHandler } from './routes/razorpay-webhook.js'
 import { videosRouter } from './routes/videos.js'
 
 export const app = express()
@@ -18,6 +20,11 @@ app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'))
 
 // Better Auth must receive the request before body-parsing middleware.
 app.all('/api/auth/*splat', toNodeHandler(auth))
+app.post(
+  '/api/webhooks/razorpay',
+  express.raw({ type: 'application/json', limit: '1mb' }),
+  razorpayWebhookHandler,
+)
 
 app.use(express.json())
 
@@ -27,6 +34,7 @@ app.get('/api/health', (_request, response) => {
 
 app.use('/api/courses', coursesRouter)
 app.use('/api/me', meRouter)
+app.use('/api/payments', paymentsRouter)
 app.use('/api/videos', videosRouter)
 app.use('/api/admin', adminRouter)
 

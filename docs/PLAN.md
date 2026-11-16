@@ -1,12 +1,12 @@
 # Course app: API and database design
 
-Scope of this doc: everything you need to get Better Auth, RBAC and courses/videos CRUD working. Playback uses private R2 presigning. Payments (Razorpay) remain stubbed.
+Scope of this doc: Better Auth, RBAC, course and video management, private R2 playback, and one-time Razorpay course purchases.
 
 ## Decisions baked in
 
 - **Better Auth owns users, sessions and passwords.** Your `Users` box (emailId, password) doesn't get hand-built. Better Auth generates `user`, `session`, `account` and `verification` tables, and the password hash lives in `account`, not `user`.
 - **RBAC = Better Auth's `admin` plugin.** It adds `role` (plus `banned`, `ban_reason`, `ban_expires`) to `user`, and `impersonated_by` to `session`. Two roles: `user` and `admin`. It also ships list-users, set-role and ban endpoints, so you don't write a users admin API yourself.
-- **`entitlement` is the single source of truth for access.** Razorpay will later just insert a row. Until then, an admin "grant" endpoint lets you test the whole flow.
+- **`entitlement` is the single source of truth for access.** A captured Razorpay purchase or an admin grant inserts or reactivates the row.
 - **Object keys never leave the server.** Clients only ever get a short-lived presigned URL from a playback endpoint that checks entitlement first.
 - **Your "Content Interactions" box becomes `video_progress`** (current state per user per video), not an event log. One row per (user, video), upserted. That's what a resume-where-you-left-off player needs. Add a `watch_event` log later only if you want analytics.
 
@@ -67,7 +67,7 @@ Notes:
 
 - `metadata`: use real columns for anything you'll filter or sort on (level, language); keep jsonb for the long tail.
 - `position` deliberately has no unique constraint on `(course_id, position)`, since that makes reordering painful. Reorder in one transaction instead (see the admin routes).
-- When Razorpay lands you'll add a `payment`/`order` table and a `payment_id` on `entitlement`. Don't build it yet.
+- The `purchase` table records the Razorpay order, the captured payment, and the snapshotted amount. Purchased entitlements link to that row through `purchase_id`.
 - **The access rule, used everywhere:** a user may access a course if they're an admin, or there's an `entitlement` row for (user, course) with `revoked_at is null`.
 
 ## 2. API
@@ -156,10 +156,10 @@ Player page behaviour worth planning: resume from saved `position_seconds`, save
 5. `/content` route and the stubbed `/playback` route; build the frontend pages against these.
 6. `video_progress` and the progress route.
 7. Swap the stub for real R2 presigning.
-8. Razorpay: create order, then a **webhook** (not the client redirect) inserts the entitlement. Verify the signature, and make it idempotent so a retried webhook doesn't double-grant.
+8. Razorpay: create an order from the stored course price. Checkout verification and the webhook share one idempotent finalization service that grants the entitlement after capture.
 
 ## 5. Open decisions
 
 - **Slug vs id in URLs.** The doc uses slugs on the public side and ids in admin. Make slug immutable after publishing, or you break shared links.
 - **Free preview video.** A boolean `is_preview` on `video` that bypasses the entitlement check is a cheap, common addition for sales pages. Not in the schema above.
-- **Refunds.** The `revoked_at` column already supports it; you only need to decide the policy.
+- **Refunds.** Refund handling is outside the current scope.

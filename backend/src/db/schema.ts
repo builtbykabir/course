@@ -104,6 +104,8 @@ export const videoUploadStatus = pgEnum('video_upload_status', [
   'aborted',
 ])
 
+export const purchaseStatus = pgEnum('purchase_status', ['pending', 'paid'])
+
 export const course = pgTable(
   'course',
   {
@@ -212,6 +214,67 @@ export const videoUpload = pgTable(
   ],
 )
 
+export const purchase = pgTable(
+  'purchase',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'restrict' }),
+    courseId: uuid('course_id')
+      .notNull()
+      .references(() => course.id, { onDelete: 'restrict' }),
+    amountPaise: integer('amount_paise').notNull(),
+    currency: text('currency').notNull(),
+    status: purchaseStatus('status').default('pending').notNull(),
+    receipt: text('receipt').notNull(),
+    razorpayOrderId: text('razorpay_order_id'),
+    razorpayPaymentId: text('razorpay_payment_id'),
+    paidAt: timestamp('paid_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex('purchase_receipt_idx').on(table.receipt),
+    uniqueIndex('purchase_razorpay_order_id_idx').on(table.razorpayOrderId),
+    uniqueIndex('purchase_razorpay_payment_id_idx').on(table.razorpayPaymentId),
+    uniqueIndex('purchase_pending_user_course_idx')
+      .on(table.userId, table.courseId)
+      .where(sql`${table.status} = 'pending'`),
+    index('purchase_user_id_idx').on(table.userId),
+    index('purchase_course_id_idx').on(table.courseId),
+    check('purchase_amount_paise_check', sql`${table.amountPaise} > 0`),
+    check('purchase_currency_check', sql`char_length(${table.currency}) = 3`),
+    check(
+      'purchase_paid_fields_check',
+      sql`${table.status} <> 'paid' or (${table.razorpayOrderId} is not null and ${table.razorpayPaymentId} is not null and ${table.paidAt} is not null)`,
+    ),
+  ],
+)
+
+export const paymentEvent = pgTable(
+  'payment_event',
+  {
+    eventId: text('event_id').primaryKey(),
+    type: text('type').notNull(),
+    razorpayOrderId: text('razorpay_order_id'),
+    razorpayPaymentId: text('razorpay_payment_id'),
+    processedAt: timestamp('processed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index('payment_event_razorpay_order_id_idx').on(table.razorpayOrderId),
+    index('payment_event_razorpay_payment_id_idx').on(table.razorpayPaymentId),
+  ],
+)
+
 export const entitlement = pgTable(
   'entitlement',
   {
@@ -222,6 +285,9 @@ export const entitlement = pgTable(
     courseId: uuid('course_id')
       .notNull()
       .references(() => course.id, { onDelete: 'restrict' }),
+    purchaseId: uuid('purchase_id').references(() => purchase.id, {
+      onDelete: 'restrict',
+    }),
     source: text('source').notNull(),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
@@ -233,6 +299,7 @@ export const entitlement = pgTable(
       table.userId,
       table.courseId,
     ),
+    uniqueIndex('entitlement_purchase_id_idx').on(table.purchaseId),
     index('entitlement_course_id_idx').on(table.courseId),
     check(
       'entitlement_source_check',

@@ -757,6 +757,18 @@ label select {
   color: var(--muted);
   line-height: 1.5;
 }
+.checkout-action {
+  margin-bottom: 12px;
+}
+.enrol-card .checkout-action .button {
+  margin-bottom: 10px;
+}
+.enrol-card .checkout-message {
+  color: var(--green);
+}
+.enrol-card .checkout-error {
+  color: #9c1939;
+}
 .detail-two-column {
   display: grid;
   grid-template-columns: 1fr 0.8fr;
@@ -1243,6 +1255,9 @@ label select {
 .admin-callout p {
   margin: 0;
   color: #c9c0c2;
+}
+.admin-payment-section {
+  margin-top: 35px;
 }
 .admin-table-wrap {
   overflow-x: auto;

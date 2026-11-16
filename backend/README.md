@@ -33,6 +33,21 @@ range requests directly to R2 for streaming and seeking. Set
 See [`docs/R2_STORAGE.md`](../docs/R2_STORAGE.md) for the bucket CORS policy and
 setup checks.
 
+## Configure Razorpay payments
+
+Create Razorpay Test Mode API keys and set `RAZORPAY_KEY_ID` and
+`RAZORPAY_KEY_SECRET` in `.env`. Set `RAZORPAY_WEBHOOK_SECRET` to a separate
+random value. Configure that value as the secret for the `order.paid` webhook.
+
+The webhook URL is `/api/webhooks/razorpay` on the deployed backend. Razorpay
+requires a public HTTPS URL and cannot deliver a webhook to localhost. Enable
+automatic capture in the Razorpay Dashboard.
+
+The signed-in order route reads the amount and currency from the course row.
+Both Checkout verification and the webhook call the same idempotent purchase
+finalization service. The admin purchase list can re-check a pending Razorpay
+order. The application does not implement refunds.
+
 ## Create the first admin
 
 Sign up through Better Auth, then promote that account from the backend:
