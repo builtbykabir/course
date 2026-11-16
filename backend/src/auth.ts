@@ -1,5 +1,6 @@
 import { drizzleAdapter } from '@better-auth/drizzle-adapter'
 import { betterAuth } from 'better-auth/minimal'
+import { admin } from 'better-auth/plugins'
 
 import { env } from './config/env.js'
 import { db } from './db/index.js'
@@ -16,6 +17,12 @@ export const auth = betterAuth({
     schema,
     transaction: true,
   }),
+  socialProviders: {
+    google: {
+      clientId: env.GOOGLE_CLIENT_ID,
+      clientSecret: env.GOOGLE_CLIENT_SECRET,
+    },
+  },
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: true,
@@ -45,4 +52,10 @@ export const auth = betterAuth({
       )
     },
   },
+  plugins: [
+    admin({
+      defaultRole: 'user',
+      adminRoles: ['admin'],
+    }),
+  ],
 })

@@ -119,3 +119,123 @@ providers must include their required TLS settings in `DATABASE_URL`.
 Run both development servers. Confirm that `/api/health` and `/api/auth/ok`
 respond through the frontend origin. Test sign-up and session cookies after you
 apply the migration to the selected database.
+
+## ADR-003: Use entitlements as the course-access record
+
+- Status: accepted
+- Date: 2026-11-15
+- Supersedes: none
+- Related files: `backend/src/db/schema.ts`, `backend/src/middleware/auth.ts`
+
+### Context
+
+Course access can come from a purchase or an admin grant. Every content route
+needs the same access rule.
+
+### Decision
+
+The `entitlement` table is the course-access record. A user can access a course
+when an active entitlement exists for that user and course. Admins can access
+every course without an entitlement.
+
+Revocation sets `revoked_at` and preserves the row. The initial model has no
+free-preview exception.
+
+### Alternatives considered
+
+Roles cannot represent per-course purchases. Separate purchase and admin-grant
+checks would duplicate access logic across routes.
+
+### Consequences
+
+Razorpay can grant access by inserting or reactivating an entitlement. Course
+deletion fails when an entitlement refers to the course.
+
+### Verification
+
+Check that content, playback, and progress routes use `requireEntitlement`.
+Confirm that the course foreign key on `entitlement` uses `ON DELETE RESTRICT`.
+
+## ADR-004: Keep published course slugs immutable
+
+- Status: accepted
+- Date: 2026-11-15
+- Supersedes: none
+- Related files: `backend/src/routes/admin.ts`
+
+### Context
+
+Public course URLs use slugs. Changing a slug after publication breaks saved and
+shared links.
+
+### Decision
+
+Admins can change a course slug while the course is a draft. Publishing or
+archiving the course makes the slug immutable.
+
+### Alternatives considered
+
+Mutable slugs would require a redirect table and a redirect-retention policy.
+The current scope does not need either one.
+
+### Consequences
+
+Admins must choose the final slug before publication. A future slug change
+requires a separate redirect design.
+
+### Verification
+
+Send `PATCH /api/admin/courses/:id` with a different slug for a published or
+archived course. The API returns `409`.
+
+## ADR-005: Keep video transfer outside the application backend
+
+- Status: accepted
+- Date: 2026-11-15
+- Supersedes: none
+- Related files: `backend/src/storage/r2.ts`, `backend/src/routes/admin-video-uploads.ts`, `backend/src/routes/videos.ts`, `backend/src/db/schema.ts`
+
+### Context
+
+Course videos are large. Sending uploads or playback through Express would use
+application bandwidth and tie long-running transfers to an API process. The R2
+bucket must remain private, and the application must enforce course access.
+
+### Decision
+
+Use the R2 S3-compatible API through `@aws-sdk/client-s3`. Administrators upload
+parts directly to R2 with presigned `UploadPart` URLs. The backend records the
+multipart lifecycle and completes or aborts the provider upload.
+
+After the existing entitlement middleware allows playback, the backend returns
+a presigned `GetObject` URL. The browser requests video bytes and byte ranges
+directly from R2. `S3_PRESIGNED_URL_TTL_HOURS` controls the URL lifetime.
+
+Keep public bucket access, `r2.dev`, custom domains, Workers, and WAF delivery
+out of this design.
+
+### Alternatives considered
+
+Proxying video through Express would keep one application hostname but would
+consume backend bandwidth for every upload and playback request.
+
+An R2 custom domain would use Cloudflare Cache, but the domain makes the bucket
+public unless paid access controls protect it. The current design does not use
+paid Cloudflare features.
+
+### Consequences
+
+The R2 bucket needs a CORS policy that allows the frontend to send `PUT`, `GET`,
+and `HEAD` requests and read `ETag` headers. Presigned URLs are bearer tokens
+until they expire. The API must return them only after an admin or entitlement
+check.
+
+The database records upload state so retries cannot create duplicate lessons.
+R2 handles playback range requests without sending bytes through Express.
+
+### Verification
+
+Confirm that multipart `PUT` requests and playback `GET` requests go to the R2
+S3 API endpoint. Confirm that playback returns `206 Partial Content` for a
+request with a valid `Range` header. Confirm that the playback endpoint returns
+`401` or `403` before it signs a URL for a user without course access.

@@ -1,6 +1,6 @@
 # Course app: API and database design
 
-Scope of this doc: everything you need to get Better Auth, RBAC and courses/videos CRUD working. Playback (R2 presigning) and payments (Razorpay) are designed for, but stubbed until you've finished the docs.
+Scope of this doc: everything you need to get Better Auth, RBAC and courses/videos CRUD working. Playback uses private R2 presigning. Payments (Razorpay) remain stubbed.
 
 ## Decisions baked in
 
@@ -97,7 +97,7 @@ Make sure `role` can't be set from the sign-up payload (mark it non-input), and 
 |---|---|---|
 | GET | `/api/me/courses` | Courses the user is entitled to, with progress summary (videos completed / total). Powers `/purchases`. |
 | GET | `/api/courses/:slug/content` | `requireEntitlement`. Video list plus the user's progress per video. |
-| GET | `/api/videos/:videoId/playback` | `requireEntitlement`. Returns `{ url, expiresAt }`: a presigned R2 GET URL for the video's `object_key`. Stub it with a fixed URL until the R2 part is done. |
+| GET | `/api/videos/:videoId/playback` | `requireEntitlement`. Returns `{ url, expiresAt }`: a presigned R2 GET URL for the video's `object_key`. |
 | PUT | `/api/videos/:videoId/progress` | `requireEntitlement`. Body `{ positionSeconds, completed }`. Upsert into `video_progress`. The player calls this every ~10-15s and on pause/end. |
 
 ### Admin (`requireAdmin`, all under `/api/admin`)
